@@ -1,8 +1,9 @@
 namespace GCP_Auth_Example
 {
+    using GCP_Auth_Example.Helpers;
+    using GCP_Auth_Example.Services;
     using Microsoft.AspNetCore.Builder;
     using Microsoft.AspNetCore.Hosting;
-    using Microsoft.AspNetCore.Http;
     using Microsoft.Azure.KeyVault;
     using Microsoft.Azure.Services.AppAuthentication;
     using Microsoft.Extensions.Configuration;
@@ -29,12 +30,24 @@ namespace GCP_Auth_Example
         // For more information on how to configure your application, visit https://go.microsoft.com/fwlink/?LinkID=398940
         public void ConfigureServices(IServiceCollection services)
         {
+            services.AddControllers();
+
+            var keyvaultBaseURl = Configuration["KeyVaultBaseURL"];
             var azureServiceTokenProvider = new AzureServiceTokenProvider();
             var keyVaultClient = new KeyVaultClient(
                 new KeyVaultClient.AuthenticationCallback(
                     azureServiceTokenProvider.KeyVaultTokenCallback));
 
-            
+            services.AddScoped<FirebaseClient>(c =>
+            {
+                var gcpCreds = GCPCredentialHelper.GetGCPCredentialJson(Configuration, keyVaultClient, keyvaultBaseURl).GetAwaiter().GetResult();
+
+                var projectId = Configuration["GCP:ProjectId"];
+                var fireBaseClient = new FirebaseClient(gcpCreds, projectId);
+                return fireBaseClient;
+            });
+
+
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -44,15 +57,11 @@ namespace GCP_Auth_Example
             {
                 app.UseDeveloperExceptionPage();
             }
-
+            app.UseHttpsRedirection();
             app.UseRouting();
-
             app.UseEndpoints(endpoints =>
             {
-                endpoints.MapGet("/", async context =>
-                {
-                    await context.Response.WriteAsync("Hello World!");
-                });
+                endpoints.MapControllers();
             });
         }
     }
